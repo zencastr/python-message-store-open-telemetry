@@ -11,6 +11,7 @@ license = "MIT"
 keywords = ["nats", "jetstream", "opentelemetry", "tracing", "message-store"]
 authors = [
   { name = "Rui Figueiredo", email = "rui@zencastr.com" },
+  { name = "Alex Cannan", email = "alex@zencastr.com" },
 ]
 classifiers = [
   "Development Status :: 4 - Beta",
