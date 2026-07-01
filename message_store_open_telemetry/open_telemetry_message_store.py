@@ -9,7 +9,7 @@ from opentelemetry.trace import Link, SpanKind
 
 from message_store import Message, MessageFromSubscription, MessageStoreProtocol
 
-from .tracing import tracer
+from .tracing import to_low_cardinality_subject, tracer
 
 
 def get_message_store_with_open_telemetry(
@@ -44,7 +44,7 @@ class _OpenTelemetryMessageStore:
         # PRODUCER span as a child of whatever context is active (e.g. an HTTP server span, or a
         # consumer process span when re-publishing from a handler — the cross-service hop).
         with tracer.start_as_current_span(
-            f"nats publish {subject}",
+            f"nats publish {to_low_cardinality_subject(subject)}",
             kind=SpanKind.PRODUCER,
             attributes={
                 "messaging.system": "nats",
@@ -115,7 +115,7 @@ class _OpenTelemetryMessageStore:
                 attributes["messaging.nats.redelivery_count"] = raw.metadata.num_delivered
 
             span = tracer.start_span(
-                f"nats process {message.subject}",
+                f"nats process {to_low_cardinality_subject(message.subject)}",
                 context=parent_context,
                 kind=SpanKind.CONSUMER,
                 links=links,
