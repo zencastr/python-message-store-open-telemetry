@@ -15,7 +15,7 @@ _UUID = re.compile(
 )
 
 
-def to_low_cardinality_subject(subject: str) -> str:
+def replace_subject_ids_with_placeholder(subject: str) -> str:
     """Replace per-message id tokens in a NATS subject with ``{id}``.
 
     NATS subjects embed a per-message id (Mongo ObjectId / UUID) as a token, e.g.
