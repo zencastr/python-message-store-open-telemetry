@@ -123,9 +123,11 @@ class _OpenTelemetryMessageStore:
                     attributes["messaging.message.body.metadata.originSubject"] = (
                         message.metadata.originSubject
                     )
-                # The JS producers stamp a zen-log trace id under a nested __zenlog object (parsed
-                # into additional_props here since it isn't a first-class metadata field). Absent for
-                # Python-produced messages — only set it when present.
+                # zen-log trace id, captured whichever way the producer stamped it: the Python
+                # zen_log sets a first-class metadata.traceId, while the JS zen-log nests it under a
+                # __zenlog object (which lands in additional_props here). Only set when present.
+                if message.metadata.traceId is not None:
+                    attributes["messaging.message.body.metadata.traceId"] = message.metadata.traceId
                 zenlog = message.metadata.additional_props.get("__zenlog")
                 if isinstance(zenlog, dict) and zenlog.get("traceId") is not None:
                     attributes["messaging.message.body.metadata.__zenlog.traceId"] = zenlog["traceId"]
