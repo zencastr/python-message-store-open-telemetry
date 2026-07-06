@@ -29,8 +29,15 @@ dependencies = [
 ]
 dynamic = ["version"]
 
+[project.optional-dependencies]
+# Testing needs the OTel SDK (an in-memory span exporter) to assert what spans the wrapper emits;
+# the runtime dependency is opentelemetry-api only. Run: pip install -e '.[test]' && python -m unittest
+test = [
+  "opentelemetry-sdk",
+]
+
 [project.urls]
-Source = "https://github.com/zencastr/message-store-open-telemetry"
+Source = "https://github.com/zencastr/python-message-store-open-telemetry"
 
 [tool.hatch.version]
 path = "message_store_open_telemetry/__about__.py"

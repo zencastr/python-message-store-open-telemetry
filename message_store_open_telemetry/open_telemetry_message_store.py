@@ -9,7 +9,7 @@ from opentelemetry.trace import Link, SpanKind
 
 from message_store import Message, MessageFromSubscription, MessageStoreProtocol
 
-from .tracing import tracer
+from .tracing import replace_subject_ids_with_placeholder, tracer
 
 
 def get_message_store_with_open_telemetry(
@@ -44,7 +44,7 @@ class _OpenTelemetryMessageStore:
         # PRODUCER span as a child of whatever context is active (e.g. an HTTP server span, or a
         # consumer process span when re-publishing from a handler — the cross-service hop).
         with tracer.start_as_current_span(
-            f"nats publish {subject}",
+            f"nats publish {replace_subject_ids_with_placeholder(subject)}",
             kind=SpanKind.PRODUCER,
             attributes={
                 "messaging.system": "nats",
@@ -76,7 +76,7 @@ class _OpenTelemetryMessageStore:
         dead_letter_subject: Optional[str] = None,
     ):
         traced_handlers = {
-            message_type: self._trace_handler(handler, consumer_name)
+            message_type: self._trace_handler(handler, subject, consumer_name)
             for message_type, handler in handlers.items()
         }
         return self._store.create_subscription(
@@ -88,7 +88,10 @@ class _OpenTelemetryMessageStore:
         )
 
     def _trace_handler(
-        self, handler: Callable[[MessageFromSubscription], None], consumer_name: str
+        self,
+        handler: Callable[[MessageFromSubscription], None],
+        subject: str,
+        consumer_name: str,
     ) -> Callable[[MessageFromSubscription], None]:
         @functools.wraps(handler)
         async def traced(message: MessageFromSubscription):
@@ -113,9 +116,24 @@ class _OpenTelemetryMessageStore:
             if raw is not None:
                 attributes["messaging.nats.stream"] = raw.metadata.stream
                 attributes["messaging.nats.redelivery_count"] = raw.metadata.num_delivered
+            if message.metadata is not None:
+                # Origin of the causation chain the app already tracks in the body metadata; handy
+                # for correlating a trace back to the producing subject. Always camelCase.
+                if message.metadata.originSubject is not None:
+                    attributes["messaging.message.body.metadata.originSubject"] = (
+                        message.metadata.originSubject
+                    )
+                # zen-log trace id, captured whichever way the producer stamped it: the Python
+                # zen_log sets a first-class metadata.traceId, while the JS zen-log nests it under a
+                # __zenlog object (which lands in additional_props here). Only set when present.
+                if message.metadata.traceId is not None:
+                    attributes["messaging.message.body.metadata.traceId"] = message.metadata.traceId
+                zenlog = message.metadata.additional_props.get("__zenlog")
+                if isinstance(zenlog, dict) and zenlog.get("traceId") is not None:
+                    attributes["messaging.message.body.metadata.__zenlog.traceId"] = zenlog["traceId"]
 
             span = tracer.start_span(
-                f"nats process {message.subject}",
+                f"nats process {subject} ({consumer_name})",
                 context=parent_context,
                 kind=SpanKind.CONSUMER,
                 links=links,
